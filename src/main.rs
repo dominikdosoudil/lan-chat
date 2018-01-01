@@ -1,68 +1,46 @@
-extern crate pnet_datalink;
-
-use std::net::{TcpListener, TcpStream};
-use std::thread;
-use std::io;
-use std::time::Duration;
-
-use pnet_datalink::{channel, Channel, NetworkInterface, Config, interfaces, ChannelType};
-
-fn run_server() {
-	fn handle_client(s: TcpStream) {
-		println!("Handling stream");	
-	}
-
-	let listener = TcpListener::bind("0.0.0.0:8000").unwrap();
-
-	for stream in listener.incoming() {
-		match stream {
-			Ok(x) => handle_client(x),
-			_ => println!("whoops"),
-		}
-	}
-}
+use std::net::UdpSocket;
+//use std::thread;
+//use std::io;
+use std::env;
+use std::str;
 
 fn main() {
-	fn send(text: String) {
-		println!("Sending: {}", text);
+
+	
+	let args: Vec<String> = env::args().collect();
+	
+	match &args[1][..] {
+		"srv" => {
+			let socket = UdpSocket::bind("0.0.0.0:8001").unwrap();
+			socket.set_broadcast(true).expect("Whoops");
+			
+			let mut buff = [0; 255];
+			loop {
+				println!("Opening recv");
+				let (bytes_n, src_addr) = socket.recv_from(&mut buff).expect("Didn't rcv data");
+				println!("Data recieved ({}) from {}: {:?}", bytes_n, src_addr, str::from_utf8(&buff[0..bytes_n]));
+			};
+		},
+		"client" => {	
+			let socket = UdpSocket::bind("0.0.0.0:8002").unwrap();
+			socket.set_broadcast(true).expect("Whoops");
+
+			println!("Sending DISC");
+			socket.send_to("DISCOVER CHAT NODES".as_bytes(), "192.168.1.255:8001").unwrap();
+		},
+		_ => println!("srv|client"),
 	}
 
+	
 //	thread::spawn(|| {
 //		
 //		loop {
 //			let mut input = String::new();
 //			match io::stdin().read_line(&mut input) {
-//				Ok(len) => send(input),
+//				Ok(_) => send(input),
 //				Err(error) => println!("Fuking error {:?}", error),
 //			}
 //		}
 //		println!("loop killed");
 //	});
-	
-	let ifcs = interfaces();
-
-	for ifc in &ifcs { println!("{:?}", ifc.name); }
-	
-	println!("Select interface:");
-	let mut ifcname = String::new();
-	match io::stdin().read_line(&mut ifcname) {
-		Ok(len) => {
-			ifcname.pop(); // remove newline char
-			match ifcs.iter().find(|&x| x.name == ifcname) {
-				Some(ifc) => {
-					let config = Config {
-						write_buffer_size: 32,
-						read_buffer_size: 32,
-						read_timeout: Some(Duration::new(5, 0)),
-						write_timeout: Some(Duration::new(5, 0)),
-						channel_type: ChannelType::Layer2,
-						bpf_fd_attempts: 3,
-					};
-					let chann = channel(&ifc, config);
-				},
-				None => println!("Interface not found."),
-			}
-		},
-		Err(error) => println!("{:?}", error),
-	};
 }
