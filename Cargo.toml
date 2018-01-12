@@ -4,4 +4,3 @@ version = "0.1.0"
 authors = ["Dominik Dosoudil <dosoudil@insoft.cz>"]
 
 [dependencies]
-pnet_datalink = "0.20.0"
