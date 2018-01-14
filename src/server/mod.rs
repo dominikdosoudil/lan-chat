@@ -2,7 +2,7 @@ use std::net::UdpSocket;
 //use std::{thread, str, time};
 use std::collections::HashMap;
 use std::time::Duration;
-use std::str;
+use std::{str, io};
 
 use serde_json::{to_string as json, from_str as from_json};
 
@@ -11,6 +11,7 @@ enum States {
 	Discovering,
 	SelectingChannel,
 	CreatingChannel,
+	Connected,
 	Chatting,
 }
 
@@ -77,8 +78,49 @@ impl Server {
 	fn discover(&self) {
 	}
 
+	fn create_channel (&mut self, mut name: String) -> Result<&'static str, &'static str> {
+		match name.len() {
+			0 => {
+				println!("Channel must be named somehow.");
+				return Err("Zero length name.");
+			},
+			_ => {
+				self.selected_channel = name;
+				self.role = Roles::King;
+				self.state = States::Connected;
+				return Ok("Channel created");
+			},
+		}
+	}
+
+	fn select_channel (&mut self) -> Result<&'static str, &'static str> {
+		println!("Choose channel or type new name if you wish to create a new one.");
+		println!("Avaliable channels:\n-----");
+		for chann in self.channels.keys() {
+			println!("{}", chann);
+		}
+		println!("-----");
+		let mut chann_name = String::new();
+		match io::stdin().read_line(&mut chann_name) {
+			Ok(len) => {
+				chann_name.pop(); // remove newline
+				match self.channels.get(&chann_name) {
+					Some(x) => {
+						println!("{:?}", x);
+						return Ok("Selected");
+					},
+					None => { },
+				}
+				&self.create_channel(chann_name);
+				Ok("Whatever.")
+			},
+			Err(_) => { return Err("Whoops"); },
+		}
+
+	}
+
 	pub fn shake(&mut self) {
-		let mut buff = [0; 255];
+		let mut buff = [0; 8192];
 		let body = HashMap::new();
 		let mut discover_msg = Response {
 			header: "DISCOVER".to_owned(),
@@ -86,9 +128,11 @@ impl Server {
 		};
 
 		self.socket.send_to(json(&discover_msg).unwrap().as_bytes(), "192.168.1.255:12345");
-		self.socket.set_read_timeout(Some(Duration::new(10, 0)));
+		self.socket.set_read_timeout(Some(Duration::new(5, 0)));
 		let mut channels = vec![0];
 		self.socket.set_broadcast(true).expect("Couldn't set broadcast on socket.");
+
+		// Listen for DISCOVERY Answers
 		loop {
 			match self.socket.recv_from(&mut buff) {
 				Ok(t) => {
@@ -96,11 +140,12 @@ impl Server {
 					let request: Request = from_json(str::from_utf8(&buff[0..bytes_n]).unwrap()).unwrap();
 					match &request.header[..] {
 						"HEREIAM" => {
-							&self.add_channel(request.body.get("name").unwrap().to_string(), src_addr.to_string());
-						},
-						_ => {
-							println!("Useless message");
+							match request.body.get("name") {
+								Some(name) => self.add_channel(name.to_string(), src_addr.to_string()),
+								None => {}
+							}
 						}
+						_ => {}, 
 					}
 					//println!("Data recieved ({}) from {}: {:?}", bytes_n, src_addr, request.header);
 				},
@@ -109,7 +154,18 @@ impl Server {
 				}
 			}
 		}
-		println!("{:?}", &self.channels);
+
+		match self.channels.len() {
+			0 => {
+				println!("None channel discovered.");
+				println!("Enter channel name:");
+				let mut name = String::new();
+				io::stdin().read_line(&mut name).unwrap();
+				name.pop(); //remove newline
+				self.create_channel(name);
+			},
+			_ => { self.select_channel(); },
+		}
 	}
 
 	pub fn listen<S>(&self, p: S) {
