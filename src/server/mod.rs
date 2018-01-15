@@ -75,9 +75,6 @@ impl Server {
 		});
 	}
 
-	fn discover(&self) {
-	}
-
 	fn create_channel (&mut self, mut name: String) -> Result<&'static str, &'static str> {
 		match name.len() {
 			0 => {
@@ -106,7 +103,9 @@ impl Server {
 				chann_name.pop(); // remove newline
 				match self.channels.get(&chann_name) {
 					Some(x) => {
-						println!("{:?}", x);
+						self.selected_channel = String::from(chann_name);
+						self.role = Roles::Slave;
+						self.state = States::Connected;
 						return Ok("Selected");
 					},
 					None => { },
@@ -166,6 +165,44 @@ impl Server {
 			},
 			_ => { self.select_channel(); },
 		}
+		loop {
+			/**
+			 * Fucking deadlock coz it sends when recving
+			 * needed to rewrite to Request protocol and use threads
+			 */
+			match self.socket.recv_from(&mut buff) {
+				Ok(t) => {
+					let (bytes_n, src_addr) = t;
+					let request: Request = from_json(str::from_utf8(&buff[0..bytes_n]).unwrap()).unwrap();
+					match &request.header[..] {
+						"DISCOVER" => {
+							/*
+							match self.role {
+								Roles::King => {
+									*/
+									let body = HashMap::new();
+									let mut hereiam_msg = Response {
+										header: "HEREIAM".to_owned(),
+										body: body,
+									};
+									self.socket.send_to(json(&hereiam_msg).unwrap().as_bytes(), &src_addr);
+									/*
+								},
+								_ => {},
+							}
+							*/
+						}
+						_ => {}, 
+					}
+					//println!("Data recieved ({}) from {}: {:?}", bytes_n, src_addr, request.header);
+				},
+				Err(e) => {
+					println!("{:?}", e);
+					break;
+				}
+			}
+		}
+
 	}
 
 	pub fn listen<S>(&self, p: S) {
