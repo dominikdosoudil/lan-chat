@@ -18,7 +18,7 @@ fn main() {
 	thread::spawn(move || {
 		let mut i = 0;
 		loop {
-			let sock = UdpSocket::bind("192.168.1.0:12346").unwrap();
+			let sock = UdpSocket::bind("0.0.0.0:12346").unwrap();
 			sock.set_broadcast(true).expect("Couldn't set broadcast on socket.");
 			sock.set_nonblocking(true).expect("Couldn't make socket nonblocking.");
 			i += 1;

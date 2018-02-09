@@ -108,9 +108,9 @@ impl IServer for Server {
 			},
 			Ok((n, SocketAddr::V4(senderIp))) => {
 				println!("{:?} {:?}", senderIp, self.socket.local_addr().unwrap());
-				match from_json::<Request>(str::from_utf8(&buff[0..n]).unwrap()) {
+				match Request::from_utf8(&buff[0..n]) {
 					Ok(request) => Some(request),
-					Err(_) => { /* println!("didn't parse {}",str::from_utf8(&buff[0..n]).unwrap()); */ None },
+					Err(_) => None,
 				}
 			},
 			Ok((_, SocketAddr::V6(_))) => {

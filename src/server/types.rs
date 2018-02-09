@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::mpsc::{Receiver, SyncSender};
 use std::net::SocketAddrV4;
-
+use std::str;
 use serde_json::{to_string as json, from_str as from_json};
 
 pub enum ServerState {
@@ -65,6 +65,26 @@ impl Request {
 			body,
 		}
 	}
+
+	pub fn from_utf8(buff: &[u8]) -> Result<Self, ServerError> {
+		match str::from_utf8(&buff)	{
+			Ok(jsonRequest) => {
+				match from_json::<Self>(jsonRequest) {
+					Ok(request) => return Ok(request),
+					Err(_) => return Err(ServerError::RequestParseFail),
+				}
+			},
+			Err(_) => return Err(ServerError::RequestParseFail),
+		}
+	}
+
+	pub fn as_bytes(&self) -> &[u8] {
+		//json(&self).unwrap().as_bytes()
+		match json(&self) {
+			Ok(jsonRequest) => { &jsonRequest.as_bytes() },
+			Err(e) => panic!("Cannot jsonify Request ({})", e),
+		}
+	}
 }
 
 #[derive(Debug)]
@@ -77,7 +97,8 @@ struct Channel {
 
 #[derive(Debug)]
 pub enum ServerError {
-	AlreadyStarted,	
+	AlreadyStarted,
+	RequestParseFail,
 }
 
 #[derive(Debug)]
